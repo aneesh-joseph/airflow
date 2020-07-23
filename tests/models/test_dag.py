@@ -766,7 +766,7 @@ class DagTest(unittest.TestCase):
         ).filter(
             DagModel.dag_id.in_([subdag_id, dag_id]),
         ).filter(
-            DagModel.is_paused.is_paused == expression.false()
+            DagModel.is_paused == expression.false()
         ).count()
 
         self.assertEqual(2, unpaused_dags)
@@ -778,7 +778,7 @@ class DagTest(unittest.TestCase):
         ).filter(
             DagModel.dag_id.in_([subdag_id, dag_id]),
         ).filter(
-            DagModel.is_paused.is_paused == expression.true()
+            DagModel.is_paused == expression.true()
         ).count()
 
         self.assertEqual(2, paused_dags)
