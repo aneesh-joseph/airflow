@@ -67,13 +67,13 @@ def upgrade():
             op.alter_column(
                 table_name="dag_code",
                 column_name="last_updated",
-                type_=mssql.DATETIME2(fsp=6),
+                type_=mssql.DATETIME2(precision=6),
                 nullable=False,
             )
             op.alter_column(
                 table_name="rendered_task_instance_fields",
                 column_name="execution_date",
-                type_=mssql.DATETIME2(fsp=6),
+                type_=mssql.DATETIME2(precision=6),
                 nullable=False,
             )
 

@@ -58,59 +58,12 @@ jobs:
           workflow_id: ${{ env.WORKFLOW_ID }}
           access_token: ${{ github.token }}
 
-  static-checks:
-    timeout-minutes: 60
-    name: "Static checks"
-    runs-on: ubuntu-latest
-    needs:
-      - cancel-previous-workflow-run
-    env:
-      MOUNT_SOURCE_DIR_FOR_STATIC_CHECKS: "true"
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
-        with:
-          python-version: '3.x'
-      - name: Cache pre-commit env
-        uses: actions/cache@v2
-        env:
-          cache-name: cache-pre-commit-v2
-        with:
-          path: ~/.cache/pre-commit
-          key: ${{ env.cache-name }}-${{ github.job }}-${{ hashFiles('.pre-commit-config.yaml') }}
-      - name: "Free space"
-        run: ./scripts/ci/tools/ci_free_space_on_ci.sh
-      - name: "Build CI image"
-        run: ./scripts/ci/images/ci_prepare_ci_image_on_ci.sh
-      - name: "Static checks"
-        run: ./scripts/ci/static_checks/ci_run_static_checks.sh
-      - name: "Cancel workflow on static checks failure"
-        if: ${{ failure() }}
-        uses: andymckay/cancel-action@0.2
-  docs:
-    timeout-minutes: 60
-    name: "Build docs"
-    runs-on: ubuntu-latest
-    needs:
-      - cancel-previous-workflow-run
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
-        with:
-          python-version: '3.6'
-      - name: "Build CI image ${{ matrix.python-version }}"
-        run: ./scripts/ci/images/ci_prepare_ci_image_on_ci.sh
-      - name: "Build docs"
-        run: ./scripts/ci/docs/ci_docs.sh
-      - name: "Cancel workflow on docs failure"
-        if: ${{ failure() }}
-        uses: andymckay/cancel-action@0.2
-
   tests-mssql:
     timeout-minutes: 80
     name: "${{matrix.test-type}}:mssql-${{matrix.mssql-version}},Py${{matrix.python-version}}"
     runs-on: ubuntu-latest
-    needs: [trigger-tests]
+    needs:
+      - cancel-previous-workflow-run
     strategy:
       matrix:
         python-version: [3.6, 3.7]
@@ -135,79 +88,3 @@ jobs:
         run: ./scripts/ci/images/ci_prepare_ci_image_on_ci.sh
       - name: "Tests"
         run: ./scripts/ci/testing/ci_run_airflow_testing.sh
-
-  trigger-tests:
-    timeout-minutes: 5
-    name: "Checks if tests should be run"
-    runs-on: ubuntu-latest
-    needs:
-      - cancel-previous-workflow-run
-    outputs:
-      run-tests: ${{ steps.trigger-tests.outputs.run-tests }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: "Check if tests should be run"
-        run: "./scripts/ci/tools/ci_check_if_tests_should_be_run.sh"
-        id: trigger-tests
-
-  tests-mysql:
-    timeout-minutes: 80
-    name: "${{matrix.test-type}}:MySQL${{matrix.mysql-version}}, Py${{matrix.python-version}}"
-    runs-on: ubuntu-latest
-    needs: [trigger-tests]
-    strategy:
-      matrix:
-        python-version: [3.6]
-        mysql-version: [5.6]
-        test-type: [Core, Integration]
-      fail-fast: false
-    env:
-      BACKEND: mysql
-      PYTHON_MAJOR_MINOR_VERSION: ${{ matrix.python-version }}
-      MYSQL_VERSION: ${{ matrix.mysql-version }}
-      RUN_TESTS: "true"
-      TEST_TYPE: ${{ matrix.test-type }}
-    if: needs.trigger-tests.outputs.run-tests == 'true' || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
-        with:
-          python-version: '3.x'
-      - name: "Free space"
-        run: ./scripts/ci/tools/ci_free_space_on_ci.sh
-      - name: "Build CI image ${{ matrix.python-version }}"
-        run: ./scripts/ci/images/ci_prepare_ci_image_on_ci.sh
-      - name: "Tests"
-        run: ./scripts/ci/testing/ci_run_airflow_testing.sh
-
-
-  helm-tests:
-    timeout-minutes: 5
-    name: "Checks: Helm tests"
-    runs-on: ubuntu-latest
-    needs:
-      - cancel-previous-workflow-run
-    steps:
-      - uses: actions/checkout@v2
-      - name: "Helm Tests"
-        run: ./scripts/ci/kubernetes/ci_run_helm_testing.sh
-      - name: "Cancel workflow on helm-tests failure"
-        if: ${{ failure() }}
-        uses: andymckay/cancel-action@0.2
-
-  build-prod-image:
-    timeout-minutes: 60
-    name: "Build prod image Py${{ matrix.python-version }}"
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.6]
-    env:
-      PYTHON_MAJOR_MINOR_VERSION: ${{ matrix.python-version }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: "Build PROD image ${{ matrix.python-version }}"
-        run: ./scripts/ci/images/ci_prepare_prod_image_on_ci.sh
-      - name: "Cancel workflow on build prod image failure"
-        if: ${{ failure() }}
-        uses: andymckay/cancel-action@0.2
