@@ -68,7 +68,7 @@ function setup_default_breeze_variables() {
     # We have different versions of images depending on the python version used. We keep up with the
     # Latest patch-level changes in Python (this is done automatically during CI builds) so we have
     # To only take into account MAJOR and MINOR version of python. This variable keeps the major/minor
-    # version of python in X.Y format (3.6, 3.7, 3.8 etc).
+    # version of python in X.Y format (2.7, 3.5, 3.6, 3.7, 3.8 etc).
     export PYTHON_MAJOR_MINOR_VERSION="${PYTHON_MAJOR_MINOR_VERSION:=$(read_from_file PYTHON_MAJOR_MINOR_VERSION)}"
 
     # When we generate documentation for README files, we want to force the width of terminal so that
@@ -152,6 +152,7 @@ function setup_default_breeze_variables() {
     _BREEZE_DEFAULT_POSTGRES_VERSION="9.6"
     _BREEZE_DEFAULT_POSTGRES_VERSION="9.6"
     _BREEZE_DEFAULT_MYSQL_VERSION="5.7"
+    _BREEZE_DEFAULT_MSSQL_VERSION="2017-latest"
     STATIC_CHECK_PYTHON_MAJOR_MINOR_VERSION=3.6
 }
 
@@ -229,80 +230,62 @@ function initialize_virtualenv() {
 # Sets up autocomplete for Breeze for both - bash and zsh
 function setup_autocomplete() {
     echo "Installing bash/zsh completion for local user"
+    echo "Note that completion for zsh is just limited to flags - without their values"
     echo
+    echo
+    set +e
+    grep ".bash_completion.d" "${HOME}/.bashrc" >/dev/null 2>&1
+    RES=$?
+    set -e
+    if [[ "${RES}" == "0" ]]; then
+        echo >&2
+        echo >&2 "ERROR:  Bash completion already setup before."
+        echo >&2
+        exit 1
+    fi
     "${AIRFLOW_SOURCES}/confirm" "This will create ~/.bash_completion.d/ directory and modify ~/.*rc files"
     echo
     echo
     mkdir -pv ~/.bash_completion.d
     ln -sf "${AIRFLOW_SOURCES}/breeze-complete" "${HOME}/.bash_completion.d/"
-    echo
-    echo "Breeze Bash completion is now linked to: ${AIRFLOW_SOURCES}/breeze-complete"
-    echo
-    local BREEZE_COMMENT="Added by Airflow Breeze autocomplete setup"
-    if ! grep "${BREEZE_COMMENT}" "${HOME}/.bashrc" >/dev/null 2>&1; then
-        touch ~/.bashrc
-        # shellcheck disable=SC2129
-        echo "# START: ${BREEZE_COMMENT}" >>~/.bashrc
-        cat <<"EOF" >>~/.bashrc
+    touch ~/.bashrc
+    cat >>~/.bashrc <<"EOF"
 for BCFILE in ~/.bash_completion.d/* ; do
     . ${BCFILE}
 done
 EOF
-        echo "# END: ${BREEZE_COMMENT}" >>~/.bashrc
-        echo
-        echo "The ${HOME}/.bashrc has been modified"
-        echo
-    else
-        echo
-        echo "The ${HOME}/.bashrc was already modified before. Not changing it."
-        echo
-    fi
-    if ! grep "${BREEZE_COMMENT}" "${HOME}/.zshrc" >/dev/null 2>&1; then
-        # shellcheck disable=SC2129
-        echo "# START: ${BREEZE_COMMENT}" >>~/.zshrc
-        cat <<"EOF" >>~/.zshrc
+    cat >>~/.zshrc <<"EOF"
 autoload compinit && compinit
 autoload bashcompinit && bashcompinit
 source ~/.bash_completion.d/breeze-complete
 EOF
-        echo "# END: ${BREEZE_COMMENT}" >>~/.zshrc
-        echo
-        echo "The ${HOME}/.zshrc has been modified"
-        echo
-    else
-        echo
-        echo "The ${HOME}/.zshrc was already modified before. Not changing it."
-        echo
-    fi
     if [[ "${OSTYPE}" == "darwin"* ]]; then
         #  For MacOS we have to handle the special case where terminal app DOES NOT run .bashrc by default
         #  But re-runs .bash_profile :(
         #  See https://scriptingosx.com/2017/04/about-bash_profile-and-bashrc-on-macos/
-        if ! grep "${BREEZE_COMMENT}" "${HOME}/.bash_profile"; then
-            # shellcheck disable=SC2129
-            echo "# START: ${BREEZE_COMMENT}" >>~/.bash_profile
-            cat <<"EOF" >>~/.bash_profile
+        set +e
+        grep ".bashrc" "${HOME}/.bash_profile"
+        RES=$?
+        set -e
+        if [[ "${RES}" == "0" ]]; then
+            echo "  Seems you already source .bashrc in your .bash_profile so not adding it."
+        else
+            "${AIRFLOW_SOURCES}/confirm" "This will modify  ~/.bash_profile and source .bashrc from it"
+            echo
+            echo
+            cat >>~/.bash_profile <<"EOF"
 if [ -r ~/.bashrc ]; then
     source ~/.bashrc
 fi
 EOF
-            echo "# END: ${BREEZE_COMMENT}" >>~/.bash_profile
-            echo
-            echo "The ${HOME}/.bash_profile has been modified"
-            echo
-        else
-            echo
-            echo "The ${HOME}/.bash_profile was already modified before. Not changing it."
-            echo
         fi
     fi
     echo
     echo
-    echo "Breeze completion is installed to ~/.bash_completion.d/breeze-complete"
+    echo "Breeze bash completion installed to ~/.bash_completion.d/breeze-complete"
     echo
-    echo "Please exit and re-enter your shell or run:"
     echo
-    echo "    source ~/.bash_completion.d/breeze-complete"
+    echo "Please re-enter bash or run '. ~/.bash_completion.d/breeze-complete'"
     echo
     exit 0
 }
@@ -314,8 +297,8 @@ function print_badge {
         BACKEND_VERSION="${POSTGRES_VERSION}"
     elif [[ ${BACKEND} == "mysql" ]]; then
         BACKEND_VERSION="${MYSQL_VERSION}"
-      elif [[ ${BACKEND} == "mssql" ]]; then
-          BACKEND_VERSION="${MSSQL_VERSION}"
+    elif [[ ${BACKEND} == "mssql" ]]; then
+        BACKEND_VERSION="${MSSQL_VERSION}"
     else
         BACKEND_VERSION=""
     fi
@@ -469,9 +452,10 @@ export WEBSERVER_HOST_PORT="${WEBSERVER_HOST_PORT}"
 export POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT}"
 export POSTGRES_VERSION="${POSTGRES_VERSION}"
 export MYSQL_HOST_PORT="${MYSQL_HOST_PORT}"
-export MSSQL_HOST_PORT="${MSSQL_HOST_PORT}"
 export MYSQL_VERSION="${MYSQL_VERSION}"
+export MSSQL_VERSION="${MSSQL_VERSION}"
 export AIRFLOW_SOURCES="${AIRFLOW_SOURCES}"
+export MYSQL_ENCODING="${MYSQL_ENCODING}"
 export AIRFLOW_CI_IMAGE="${AIRFLOW_CI_IMAGE}"
 export AIRFLOW_PROD_IMAGE="${AIRFLOW_PROD_IMAGE}"
 export AIRFLOW_IMAGE="${AIRFLOW_IMAGE}"
@@ -529,6 +513,7 @@ function prepare_command_files() {
     export COMPOSE_CI_FILE
     export COMPOSE_PROD_FILE
 
+    get_base_image_version
     # Base python image for the build
     export PYTHON_BASE_IMAGE=python:${PYTHON_BASE_IMAGE_VERSION}-slim-buster
     export AIRFLOW_CI_IMAGE="${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${BRANCH_NAME}-python${PYTHON_MAJOR_MINOR_VERSION}-ci"
@@ -649,6 +634,11 @@ function parse_arguments() {
         --mysql-version)
           export MYSQL_VERSION="${2}";
           echo "MySQL version: ${MYSQL_VERSION}"
+          echo
+          shift 2 ;;
+        --mssql-version)
+          export MSSQL_VERSION="${2}";
+          echo "MSSQL version: ${MSSQL_VERSION}"
           echo
           shift 2 ;;
         -l|--skip-mounting-local-sources)
@@ -791,28 +781,6 @@ function parse_arguments() {
           echo
           export GITHUB_REPOSITORY="${2}"
           shift 2;;
-        -S|--version-suffix-for-pypi)
-          if [[ ${VERSION_SUFFIX_FOR_SVN} != "" ]]; then
-              echo
-              echo "You can only set one version suffix - either for PyPI or for SVN"
-              echo
-              exit 1
-          fi
-          export VERSION_SUFFIX_FOR_PYPI="${2}"
-          echo "Version suffix for PyPI ${VERSION_SUFFIX_FOR_PYPI}"
-          echo
-          shift 2 ;;
-        -N|--version-suffix-for-svn)
-          if [[ ${VERSION_SUFFIX_FOR_PYPI} != "" ]]; then
-              echo
-              echo "You can only set one version suffix - either for PyPI or for SVN"
-              echo
-              exit 1
-          fi
-          export VERSION_SUFFIX_FOR_SVN="${2}"
-          echo "Version suffix for SVN ${VERSION_SUFFIX_FOR_SVN}"
-          echo
-          shift 2 ;;
         --)
           shift ;
           break ;;
@@ -873,14 +841,6 @@ function parse_arguments() {
           export FORCE_ANSWER_TO_QUESTIONS="yes"
           export FORCE_BUILD_IMAGES="true"
           export UPGRADE_TO_LATEST_CONSTRAINTS="true"
-          shift ;;
-        prepare-backport-packages)
-          LAST_SUBCOMMAND="${1}"
-          COMMAND_TO_RUN="perform_prepare_backport_packages"
-          shift ;;
-        prepare-backport-readme)
-          LAST_SUBCOMMAND="${1}"
-          COMMAND_TO_RUN="perform_prepare_backport_readme"
           shift ;;
         push-image)
           LAST_SUBCOMMAND="${1}"
@@ -1046,6 +1006,8 @@ function prepare_formatted_versions() {
       tr '\n' ' ' | fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
     FORMATTED_MYSQL_VERSIONS=$(echo "${_BREEZE_ALLOWED_MYSQL_VERSIONS=""}" | \
       tr '\n' ' ' | fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
+    FORMATTED_MSSQL_VERSIONS=$(echo "${_BREEZE_ALLOWED_MSSQL_VERSIONS=""}" | \
+      tr '\n' ' ' | fold -w "${WIDTH}" -s | sed "s/^/${LIST_PREFIX}/")
     FORMATTED_DEFAULT_CI_EXTRAS=$(echo "${DEFAULT_CI_EXTRAS=}" | \
       tr ',' ' ' | fold -w "${WIDTH}" -s | sed "s/ /,/g; s/^/${LIST_PREFIX}/")
     FORMATTED_DEFAULT_PROD_EXTRAS=$(echo "${DEFAULT_PROD_EXTRAS=}" | \
@@ -1065,8 +1027,6 @@ function prepare_usage() {
     export USAGE_FLAGS="Shows all breeze's flags"
     export USAGE_GENERATE_CONSTRAINTS="Generates pinned constraint files"
     export USAGE_INITIALIZE_LOCAL_VIRTUALENV="Initializes local virtualenv"
-    export USAGE_PREPARE_BACKPORT_README="Prepares backport packages readme files"
-    export USAGE_PREPARE_BACKPORT_PACKAGES="Prepares backport packages"
     export USAGE_PUSH_IMAGE="Pushes images to registry"
     export USAGE_KIND_CLUSTER="Manages KinD cluster on the host"
     export USAGE_SETUP_AUTOCOMPLETE="Sets up autocomplete for breeze"
@@ -1184,38 +1144,6 @@ $(flag_verbosity)
       Explains in detail all the flags that can be used with breeze.
 "
     # shellcheck disable=SC2089
-    DETAILED_USAGE_PREPARE_BACKPORT_README="
-${CMDNAME} prepare-backport-packages [FLAGS] [YYYY.MM.DD] [PACKAGE_ID ...]
-
-      Prepares README.md files for backport packages. You can provide (after --) optional version
-      in the form of YYYY.MM.DD, optionally followed by the list of packages to generate readme for.
-      If the first parameter is not formatted as a date, then today is regenerated.
-      If no packages are specified, readme for all packages are generated.
-      If no date is specified, current date + 3 days is used (allowing for PMC votes to pass).
-
-      Examples:
-
-      '${CMDNAME} prepare-backport-readme' or
-      '${CMDNAME} prepare-backport-readme 2020.05.10' or
-      '${CMDNAME} prepare-backport-readme 2020.05.10 https google amazon'
-
-      General form:
-
-      '${CMDNAME} prepare-backport-readme YYYY.MM.DD <PACKAGE_ID> ...'
-
-      * YYYY.MM.DD - is the CALVER version of the package to prepare. Note that this date
-        cannot be earlier than the already released version (the script will fail if it
-        will be). It can be set in the future anticipating the future release date.
-
-      * <PACKAGE_ID> is usually directory in the airflow/providers folder (for example
-        'google' but in several cases, it might be one level deeper separated with
-        '.' for example 'apache.hive'
-
-Flags:
-$(flag_verbosity)
-"
-    # shellcheck disable=SC2090
-    export DETAILED_USAGE_PREPARE_BACKPORT_README
     DETAILED_USAGE_GENERATE_CONSTRAINTS="
 ${CMDNAME} generate-constraints [FLAGS]
 
@@ -1247,37 +1175,6 @@ $(flag_airflow_variants)
 "
     # shellcheck disable=SC2090
     export DETAILED_USAGE_INITIALIZE_LOCAL_VIRTUALENV
-    # shellcheck disable=SC2089
-    DETAILED_USAGE_PREPARE_BACKPORT_PACKAGES="
-${CMDNAME} prepare-backport-packages [FLAGS] [PACKAGE_ID ...]
-
-      Prepares backport packages. You can provide (after --) optional list of packages to prepare.
-      If no packages are specified, readme for all packages are generated. You can specify optional
-      --version-suffix-for-svn flag to generate rc candidate packages to upload to SVN or
-      --version-suffix-for-pypi flag to generate rc candidates for PyPI packages.
-
-      Examples:
-
-      '${CMDNAME} prepare-backport-packages' or
-      '${CMDNAME} prepare-backport-packages google' or
-      '${CMDNAME} prepare-backport-packages --version-suffix-for-svn rc1 http google amazon' or
-      '${CMDNAME} prepare-backport-packages --version-suffix-for-pypi rc1 http google amazon'
-
-      General form:
-
-      '${CMDNAME} prepare-backport-packages \\
-            [--version-suffix-for-svn|--version-suffix-for-pypi] <PACKAGE_ID> ...'
-
-      * <PACKAGE_ID> is usually directory in the airflow/providers folder (for example
-        'google'), but in several cases, it might be one level deeper separated with '.'
-        for example 'apache.hive'
-
-Flags:
-$(flag_version_suffix)
-$(flag_verbosity)
-"
-    # shellcheck disable=SC2090
-    export DETAILED_USAGE_PREPARE_BACKPORT_PACKAGES
     # shellcheck disable=SC2089
     DETAILED_USAGE_PUSH_IMAGE="
 ${CMDNAME} push_image [FLAGS]
@@ -1482,9 +1379,6 @@ function flag_airflow_variants() {
 -p, --python <PYTHON_MAJOR_MINOR_VERSION>
         Python version used for the image. This is always major/minor version.
 
-        Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
-        --install-airflow-version or --install-airflow-reference flags.
-
         One of:
 
 ${FORMATTED_PYTHON_MAJOR_MINOR_VERSIONS}
@@ -1511,6 +1405,11 @@ ${FORMATTED_POSTGRES_VERSIONS}
         Mysql version used. One of:
 
 ${FORMATTED_MYSQL_VERSIONS}
+
+--mssql-version <MSSQL_VERSION>
+        MSSql version used. One of:
+
+${FORMATTED_MSSQL_VERSIONS}
 "
 }
 
@@ -1737,20 +1636,6 @@ function flag_pull_push_docker_images() {
 "
 }
 
-# Prints flags that control version of generated packages
-function flag_version_suffix() {
-      echo "
--S, --version-suffix-for-pypi
-        Adds optional suffix to the version in the generated backport package. It can be used
-        to generate rc1/rc2 ... versions of the packages to be uploaded to PyPI.
-
--N, --version-suffix-for-svn
-        Adds optional suffix to the generated names of package. It can be used to generate
-        rc1/rc2 ... versions of the packages to be uploaded to SVN.
-"
-}
-
-
 
 # Prints all flags
 function flags() {
@@ -1802,10 +1687,6 @@ $(flag_build_docker_images)
 $(print_star_line)
  Flags for pulling/pushing Docker images (both CI and production)
 $(flag_pull_push_docker_images)
-
-$(print_star_line)
- Flags for generation of the backport packages
-$(flag_version_suffix)
 
 $(print_star_line)
  Increase verbosity of the scripts
@@ -1864,6 +1745,9 @@ function read_saved_environment_variables {
     export MYSQL_VERSION="${MYSQL_VERSION:=$(read_from_file MYSQL_VERSION)}"
     export MYSQL_VERSION=${MYSQL_VERSION:=${_BREEZE_DEFAULT_MYSQL_VERSION}}
 
+    export MSSQL_VERSION="${MSSQL_VERSION:=$(read_from_file MSSQL_VERSION)}"
+    export MSSQL_VERSION=${MSSQL_VERSION:=${_BREEZE_DEFAULT_MSSQL_VERSION}}
+
     # Here you read DockerHub user/account that you use
     # You can populate your own images in DockerHub this way and work with the,
     # You can override it with "--dockerhub-user" option and it will be stored in .build directory
@@ -1881,29 +1765,6 @@ function read_saved_environment_variables {
 # sessions.
 function check_and_save_all_params() {
     check_and_save_allowed_param "PYTHON_MAJOR_MINOR_VERSION"  "Python version" "--python"
-
-    if [[ "${INSTALL_AIRFLOW_REFERENCE:=}" != "" ]]; then
-        if [[ ${INSTALL_AIRFLOW_REFERENCE} == *1_10* ]]; then
-            export BRANCH_NAME="v1-10-test"
-        fi
-    elif [[ "${INSTALL_AIRFLOW_VERSION:=}" != "" ]]; then
-        if [[ ${INSTALL_AIRFLOW_VERSION} == *1.10* ]]; then
-            export BRANCH_NAME="v1-10-test"
-        fi
-    fi
-
-    if [[ ${PYTHON_MAJOR_MINOR_VERSION} == "2.7" || ${PYTHON_MAJOR_MINOR_VERSION} == "3.5" ]]; then
-        if [[ ${BRANCH_NAME} == "master" ]]; then
-            echo >&2
-            echo >&2 "The ${PYTHON_MAJOR_MINOR_VERSION} can only be used when installing Airflow 1.10.*"
-            echo >&2
-            echo >&2 "You can use it only when you specify 1.10 Airflow via --install-airflow-version"
-            echo >&2 "or --install-airflow-reference and they point to 1.10 version of Airflow"
-            echo >&2
-            exit 1
-        fi
-    fi
-
     check_and_save_allowed_param "BACKEND"  "backend" "--backend"
     check_and_save_allowed_param "KUBERNETES_MODE"  "Kubernetes mode" "--kubernetes-mode"
     check_and_save_allowed_param "KUBERNETES_VERSION"  "Kubernetes version" "--kubernetes-version"
@@ -1911,6 +1772,7 @@ function check_and_save_all_params() {
     check_and_save_allowed_param "HELM_VERSION"  "Helm version" "--helm-version"
     check_and_save_allowed_param "POSTGRES_VERSION"  "Postgres version" "--postgres-version"
     check_and_save_allowed_param "MYSQL_VERSION"  "Mysql version" "--mysql-version"
+    check_and_save_allowed_param "MSSQL_VERSION"  "MSSql version" "--mssql-version"
 
     # Can't verify those - they can be anything, so let's just save them
     save_to_file DOCKERHUB_USER
@@ -1947,7 +1809,6 @@ function print_cheatsheet() {
         echo "     * ${WEBSERVER_HOST_PORT} -> forwarded to Airflow webserver -> airflow:8080"
         echo "     * ${POSTGRES_HOST_PORT} -> forwarded to Postgres database -> postgres:5432"
         echo "     * ${MYSQL_HOST_PORT} -> forwarded to MySQL database  -> mysql:3306"
-        echo "     * ${MSSQL_HOST_PORT} -> forwarded to MSSQL database  -> mssql:1433"
         echo
         echo "   Here are links to those services that you can use on host:"
         echo "     * Webserver: http://127.0.0.1:28080"
@@ -2022,12 +1883,6 @@ function run_static_checks {
         echo "Running: pre-commit run" "${EXTRA_STATIC_CHECK_OPTIONS[@]}" "$@"
         echo
         pre-commit run "${EXTRA_STATIC_CHECK_OPTIONS[@]}" "$@"
-    elif [[ ${STATIC_CHECK} == "all-but-pylint" ]]; then
-        echo
-        echo "Setting SKIP=pylint. Running: pre-commit run" "${EXTRA_STATIC_CHECK_OPTIONS[@]}" "$@"
-        echo
-        echo
-        SKIP=pylint pre-commit run "${EXTRA_STATIC_CHECK_OPTIONS[@]}" "$@"
     else
         echo
         echo "Running: pre-commit run" "${STATIC_CHECK}" "${EXTRA_STATIC_CHECK_OPTIONS[@]}" "$@"
@@ -2052,7 +1907,7 @@ function run_build_command {
                 rebuild_ci_image_if_needed
             fi
             ;;
-        build_docs|perform_static_checks|perform_generate_constraints|perform_prepare_backport_readme|perform_prepare_backport_packages)
+        build_docs|perform_static_checks|perform_generate_constraints)
             prepare_ci_build
             rebuild_ci_image_if_needed
             ;;
@@ -2130,6 +1985,7 @@ function run_breeze_command {
                 "${BUILD_CACHE_DIR}/${LAST_DC_PROD_FILE}" run --service-ports --rm airflow "${@}"
             else
                 "${BUILD_CACHE_DIR}/${LAST_DC_CI_FILE}" run --service-ports --rm airflow "${@}"
+                "${SCRIPTS_CI_DIR}/tools/ci_clear_tmp.sh"
             fi
             ;;
         run_exec)
@@ -2167,17 +2023,11 @@ function run_breeze_command {
             ;;
         build_image)
             ;;
-          cleanup_image)
+        cleanup_image)
             remove_images
             ;;
         perform_generate_constraints)
             run_generate_constraints
-            ;;
-        perform_prepare_backport_packages)
-            run_prepare_backport_packages "${@}"
-            ;;
-        perform_prepare_backport_readme)
-            run_prepare_backport_readme "${@}"
             ;;
         perform_push_image)
             if [[ ${PRODUCTION_IMAGE} == "true" ]]; then
@@ -2212,6 +2062,8 @@ function run_breeze_command {
 setup_default_breeze_variables
 
 initialize_common_environment
+
+set_mysql_encoding
 
 basic_sanity_checks
 
