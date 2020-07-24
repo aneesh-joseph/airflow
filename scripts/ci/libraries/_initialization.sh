@@ -82,6 +82,7 @@ function initialize_common_environment {
     # Default MySQL/Postgres versions
     export POSTGRES_VERSION=${POSTGRES_VERSION:="9.6"}
     export MYSQL_VERSION=${MYSQL_VERSION:="5.7"}
+    export MSSQL_VERSION=${MSSQL_VERSION:="2017-latest"}
 
     # Whether base python images should be pulled from cache
     export PULL_PYTHON_BASE_IMAGES_FROM_CACHE=${PULL_PYTHON_BASE_IMAGES_FROM_CACHE:="true"}

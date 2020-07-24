@@ -1138,6 +1138,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
 
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
+
           One of:
 
                  2.7 3.5 3.6 3.7 3.8
@@ -1259,6 +1262,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
 
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
+
           One of:
 
                  2.7 3.5 3.6 3.7 3.8
@@ -1306,6 +1312,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
+
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
 
           One of:
 
@@ -1385,6 +1394,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
+
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
 
           One of:
 
@@ -1475,6 +1487,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
 
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
+
           One of:
 
                  2.7 3.5 3.6 3.7 3.8
@@ -1483,7 +1498,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Backend to use for tests - it determines which database is used.
           One of:
 
-                 sqlite mysql postgres
+                 sqlite mysql postgres mssql
 
           Default: sqlite
 
@@ -1524,6 +1539,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
+
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
 
           One of:
 
@@ -1690,6 +1708,9 @@ This is the current syntax for  `./breeze <./breeze>`_:
   -p, --python <PYTHON_MAJOR_MINOR_VERSION>
           Python version used for the image. This is always major/minor version.
 
+          Note that versions 2.7 and 3.5 are only valid when installing Airflow 1.10 with
+          --install-airflow-version or --install-airflow-reference flags.
+
           One of:
 
                  2.7 3.5 3.6 3.7 3.8
@@ -1701,7 +1722,7 @@ This is the current syntax for  `./breeze <./breeze>`_:
           Backend to use for tests - it determines which database is used.
           One of:
 
-                 sqlite mysql postgres
+                 sqlite mysql postgres mssql
 
           Default: sqlite
 
@@ -1901,6 +1922,17 @@ This is the current syntax for  `./breeze <./breeze>`_:
 
   -g, --github-repo
           GitHub repository used to pull, push images when cache is used. Default: airflow.
+
+  ****************************************************************************************************
+   Flags for generation of the backport packages
+
+  -S, --version-suffix-for-pypi
+          Adds optional suffix to the version in the generated backport package. It can be used
+          to generate rc1/rc2 ... versions of the packages to be uploaded to PyPI.
+
+  -N, --version-suffix-for-svn
+          Adds optional suffix to the generated names of package. It can be used to generate
+          rc1/rc2 ... versions of the packages to be uploaded to SVN.
 
   ****************************************************************************************************
    Increase verbosity of the scripts
