@@ -789,7 +789,8 @@ class KubernetesExecutor(BaseExecutor, LoggingMixin):
         kube_executor_config = PodGenerator.from_obj(executor_config)
         self.task_queue.put((key, command, kube_executor_config))
 
-    def sync(self):
+    @provide_session
+    def sync(self, session=None):
         """Synchronize task state."""
         if self.running:
             self.log.debug('self.running: %s', self.running)
@@ -824,9 +825,23 @@ class KubernetesExecutor(BaseExecutor, LoggingMixin):
                 try:
                     self.kube_scheduler.run_next(task)
                 except ApiException as e:
-                    self.log.warning('ApiException when attempting to run task, re-queueing. '
-                                     'Message: %s', json.loads(e.body)['message'])
-                    self.task_queue.put(task)
+                    error_body = json.loads(e.body)
+                    self.log.warning('ApiException when attempting to run task'
+                                     'Message: %s', error_body['message']) 
+                    if 'invalid' in error_body['reason'].lower():
+                        self.log.error('Invalid Pod spec, check your executor_config or mutation hook')
+                        key, command, pod = task
+                        dag_id, task_id, execution_date, try_number = key
+                        self.running.pop(key)
+                        self.event_buffer[key] = State.FAILED
+                        session.query(TaskInstance).filter(
+                            TaskInstance.dag_id == dag_id,
+                            TaskInstance.task_id == task_id,
+                            TaskInstance.execution_date == execution_date,
+                            TaskInstance.try_number == try_number
+                          ).update({TaskInstance.state: State.FAILED}, synchronize_session='fetch')
+                    else:
+                        self.task_queue.put(task)
                 except HTTPError as e:
                     self.log.warning('HTTPError when attempting to run task, re-queueing. '
                                      'Exception: %s', str(e))
