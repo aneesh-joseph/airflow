@@ -136,6 +136,7 @@ jobs:
       postgresVersions: ${{ steps.selective-checks.outputs.postgres-versions }}
       defaultPostgresVersion: ${{ steps.selective-checks.outputs.default-postgres-version }}
       mysqlVersions: ${{ steps.selective-checks.outputs.mysql-versions }}
+      mssqlVersions: ""
       defaultMySQLVersion: ${{ steps.selective-checks.outputs.default-mysql-version }}
       helmVersions: ${{ steps.selective-checks.outputs.helm-versions }}
       defaultHelmVersion: ${{ steps.selective-checks.outputs.default-helm-version }}
@@ -679,6 +680,62 @@ ${{ hashFiles('.pre-commit-config.yaml') }}"
             coverage-postgres-${{matrix.python-version}}-${{matrix.postgres-version}}
           path: "./files/coverage.xml"
           retention-days: 7
+  tests-mssql:
+    timeout-minutes: 130
+    name: >
+      MSSQL${{matrix.mssql-version}}, Py${{matrix.python-version}}: ${{needs.build-info.outputs.testTypes}}
+    runs-on: ${{ fromJson(needs.build-info.outputs.runsOn) }}
+    needs: [build-info, ci-images]
+    strategy:
+      matrix:
+        python-version: ${{ fromJson(needs.build-info.outputs.pythonVersions) }}
+        mssql-version: ${{ fromJson(needs.build-info.outputs.mssqlVersions) }}
+        exclude: ${{ fromJson(needs.build-info.outputs.mysqlExclude) }}
+      fail-fast: false
+    env:
+      BACKEND: mssql
+      PYTHON_MAJOR_MINOR_VERSION: ${{ matrix.python-version }}
+      MSSQL_VERSION: ${{ matrix.mssql-version }}
+      RUN_TESTS: true
+      TEST_TYPES: "${{needs.build-info.outputs.testTypes}}"
+      TEST_TYPE: ""
+      GITHUB_REGISTRY: ${{ needs.ci-images.outputs.githubRegistry }}
+    if: needs.build-info.outputs.run-tests == 'true'
+    steps:
+      - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+      - name: "Setup python"
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ env.PYTHON_MAJOR_MINOR_VERSION }}
+      - name: "Free space"
+        run: ./scripts/ci/tools/ci_free_space_on_ci.sh
+      - name: "Prepare CI image ${{env.PYTHON_MAJOR_MINOR_VERSION}}:${{ env.GITHUB_REGISTRY_PULL_IMAGE_TAG }}"
+        run: ./scripts/ci/images/ci_prepare_ci_image_on_ci.sh
+      - name: "Tests: ${{needs.build-info.outputs.testTypes}}"
+        run: ./scripts/ci/testing/ci_run_airflow_testing.sh
+      - name: "Upload airflow logs"
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: airflow-logs-${{matrix.python-version}}-${{matrix.mysql-version}}
+          path: "./files/airflow_logs*"
+          retention-days: 7
+      - name: "Upload container logs"
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: container-logs-mysql-${{matrix.python-version}}-${{matrix.mysql-version}}
+          path: "./files/container_logs*"
+          retention-days: 7
+      - name: "Upload artifact for coverage"
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage-mysql-${{matrix.python-version}}-${{matrix.mysql-version}}
+          path: "./files/coverage.xml"
+          retention-days: 7
 
   tests-mysql:
     timeout-minutes: 130
@@ -688,10 +745,8 @@ ${{ hashFiles('.pre-commit-config.yaml') }}"
     needs: [build-info, ci-images]
     strategy:
       matrix:
-        python-version: ${{ fromJson(needs.build-info.outputs.pythonVersions) }}
-        mysql-version: ${{ fromJson(needs.build-info.outputs.mysqlVersions) }}
-        exclude: ${{ fromJson(needs.build-info.outputs.mysqlExclude) }}
-      fail-fast: false
+        python-version: [3.6, 3.7]
+        mysql-version: [2017-latest, 2019-latest]
     env:
       BACKEND: mysql
       PYTHON_MAJOR_MINOR_VERSION: ${{ matrix.python-version }}
